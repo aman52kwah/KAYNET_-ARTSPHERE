@@ -19,12 +19,19 @@ const {sequelize, User, Products, OrderItems, Orders, CustomOrder} =await models
 
 const app= express();
 
-const client = createClient({ url: process.env.REDIS_URL});
+const client = createClient({url :process.env.REDIS_URL});
 
 client.connect();
-
+// ======================= cache implementation =======================
 app.get('/api/data', async (req, res) => {
-  const cacheKey = 'api:data';
+ try {
+  //check if user is Authenticated
+  if(!req.isAuthenticated()){
+    return res.status(401).json({message:'Not Authenticated'})
+
+  }
+  const userId = req.user.id;
+  const cacheKey = `user:${userId}:data`;
 
   let data = await client.get(cacheKey);
   if (data) {
@@ -32,12 +39,30 @@ app.get('/api/data', async (req, res) => {
     return res.json(JSON.parse(data));
   }
 
+  console.log('Cache miss - Fetching from database');
+
+
+  //fecth actual data from database
+  const user = await User.findByPk(userId,{
+  attributes:{exclude:['password']} // exclude sensitive data
+  });
+
+
+
+
+
+
+
+  
   // Simulate slow API call
   data = { message: 'Fresh data from API' };  // Replace with actual fetch
-  await client.set(cacheKey, JSON.stringify(data), { EX: 3600 });  // Expires in 60 seconds
+  await client.set(cacheKey, JSON.stringify(data), { EX: 3600 });  // Expires in 1 hours
 
   console.log('Cache miss');
   res.json(data);
+ } catch (error) {
+  
+ } 
 });
 
 app.use(cors({
@@ -244,6 +269,58 @@ app.get('/api/users', async( req,res) =>{
     res.status(500).json({message:"internal server error"});
   }
 });
+//GET USER BY ID
+app.get('/api/users/:id',async(req,res)=>{
+  try {
+    const user = await User.findByPk(req.params.id);
+     if(!user) return res.status(404).json({error:'user not found'});
+     res.json(user);
+  } catch (error) {
+    res.status(400).json({error:error.message});
+  }
+});
+
+// POST create user ()
+app.post('/api/users', async (req,res)=>{
+  try {
+    const user = await User.create(req.body);
+    res.status(201).json(user)
+  } catch (error) {
+    res.status(400).json({error:error.message});
+  }
+});
+
+//PUT update user 
+app.put('/api/users/:id',async (req,res) =>{
+  try {
+    const user = await User.findByPk(req.params.id);
+    if(!user) return res.status(404).json({error:'Product not found'});
+
+    await user.update(req.body);
+    res.json(user);
+  } catch (error) {
+    res.status(400).json({error:error.message});
+  }
+});
+
+//DELETE user
+app.delete('/api/users/:id',async(req,res) =>{
+  try {
+      const user = await User.findByPk(req.params.id);
+      if(!user) return res.status(404).json({error:'User not found'});
+
+      await user.destroy();
+      res.json({message:'user deleted successfully'});
+  } catch (error) {
+    res.status(400).json({error:error.message});
+  }
+});
+
+
+
+
+
+
 
 //=================== PRODUCTS ENDPOINTS ==================//
 
@@ -277,7 +354,7 @@ app.post('/api/products', async (req,res)=>{
 app.put('/api/products/:id',async (req,res) =>{
   try {
     const product = await Products.findByPk(req.params.id);
-    if(!product) return res.status(404).json({error:'Product found'});
+    if(!product) return res.status(404).json({error:'Product not found'});
 
     await product.update(req.body);
     res.json(product);
@@ -303,7 +380,7 @@ app.delete('/api/product/:id',async(req,res) =>{
   //POST create custom orders
   app.get('/api/custom-orders', async (req,res) =>{
     try {
-      const customOrder = await customOrder.create({
+      const customOrder = await CustomOrder.create({
         ...req.body,
         userId:req.user.id,
         paymentStatus:'pending',
