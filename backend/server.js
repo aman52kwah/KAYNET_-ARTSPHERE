@@ -46,24 +46,81 @@ app.get('/api/data', async (req, res) => {
   const user = await User.findByPk(userId,{
   attributes:{exclude:['password']} // exclude sensitive data
   });
+  if(!user){
+    res.status(404).json({message:'User not found'});
+  }
 
-
-
-
-
-
-
-  
+  //prepare response data
+  data ={
+    user:user.toJSON(),
+    message:'Fresh data from database'
+  };
   // Simulate slow API call
-  data = { message: 'Fresh data from API' };  // Replace with actual fetch
   await client.set(cacheKey, JSON.stringify(data), { EX: 3600 });  // Expires in 1 hours
-
-  console.log('Cache miss');
   res.json(data);
  } catch (error) {
-  
+  console.error('fetching data:',error);
+  res.status(500).json({message:'internal server error'});
  } 
 });
+ // cache user's orders
+ app.get('api/user/orders', async(req,res)=>{
+  try {
+    if(!req.isAuthenticated()){
+      return res.status(401).json({message:'Not found'});
+    }
+
+    const userId = req.user.id;
+    const cacheKey =`user:${userId}:orders`;
+
+    //try cache first
+    let cachedOrders = await client.get(cacheKey);
+    
+    if(cachedOrders){
+      console.log('cache hit-Orders');
+      return res.json(JSON.parse(cachedOrders));
+
+    }
+    console.log('cache miss - fecthing orders from database');
+
+    // fetch from database
+    const orders = await Orders.findAll({
+      where:{userId:userId},
+      include:[
+        {
+          model:OrderItems,
+        include:[Products]
+        }
+      ],
+      order:[['createdAt','DESC']]
+
+    });
+    const data = {
+      orders:orders.map(order => order.toJSON()),
+      count:orders.length
+    };
+
+    // cache for 10 munites 
+    await client.set(cacheKey, JSON.stringify(data), { EX: 600 });  // Expires in 1 hours
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching orders', error);
+    res.status(500).json({message:'Internal server Error'});
+  } 
+ });
+
+
+ //cache products
+
+
+
+
+
+
+
+
+
+/// ================= END OF CACHING.  =================
 
 app.use(cors({
     origin:process.env.CLIENT_URL || 'http://http://localhost:3000',
