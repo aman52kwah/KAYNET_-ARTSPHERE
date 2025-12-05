@@ -13,8 +13,58 @@ async function initializeModels() {
   const Orders = await OrdersPromise;
   const CustomOrder = await CustomOrderPromise;
 
-  //define associations
-  CustomOrder.belongsTo(User, { foreignKey: "userId", as: "user" });
+//===========define associations================//
+//User Associations (One-to-Many)
+User.hasMany(CustomOrder, { 
+  foreignKey: "userId", 
+  as: "customOrders",
+  onDelete: "CASCADE" 
+});
+
+User.hasMany(Orders, { 
+  foreignKey: "userId", 
+  as: "orders",
+  onDelete: "CASCADE" 
+});
+
+//customOrders Associations (Many-to-One)
+CustomOrder.belongsTo(User, { 
+  foreignKey: "userId", 
+  as: "user" 
+});
+
+//orders Association
+Orders.belongsTo(User, { 
+  foreignKey: "userId", 
+  as: "user" 
+});
+
+Orders.hasMany(OrderItems, { 
+  foreignKey: "orderId", 
+  as: "orderItems",
+  onDelete: "CASCADE" 
+});
+
+//orderItems Associations
+OrderItems.belongsTo(Orders, { 
+  foreignKey: "orderId", 
+  as: "order" 
+});
+
+OrderItems.belongsTo(Products, { 
+  foreignKey: "productId", 
+  as: "product" 
+});
+
+//products Association
+Products.hasMany(OrderItems, { 
+  foreignKey: "productId", 
+  as: "orderItems",
+  onDelete: "RESTRICT" 
+});
+
+
+
 
   // Sync models with the database
   await sequelize.sync({ alter: true });

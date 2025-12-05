@@ -27,7 +27,17 @@ const User = sequelize.define(
             allowNull:false,
         },
         authSource:{
-            type:DataTypes.ENUM('google')
+            type:DataTypes.ENUM('google'),
+        },
+        googleId:{
+            type:DataTypes.STRING,
+            unique:true,
+            allowNull:true,
+
+        },
+        role:{
+            type:DataTypes.ENUM('customer','Admin'),
+            defaultValue: 'customer',
         },
        createdAt:{
             type:DataTypes.TIME,
