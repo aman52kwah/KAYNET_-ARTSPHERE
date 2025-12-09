@@ -16,21 +16,27 @@ async function defineOrders(){
             primaryKey:true,
             allowNull:false,
         },
+        orderNumber: {
+            type:DataTypes.STRING,
+            unique:true
+        },
         userId:{
             type:DataTypes.UUID,
             allowNull:false,
         },
         totalAmount:{
-            type:DataTypes.DECIMAL
+            type:DataTypes.DECIMAL(10,2),
+            allowNull:false
         },
         status:{
-            type:DataTypes.ENUM('paid','shipped')
+            type:DataTypes.ENUM('paid','shipped','pending','processing','delivered','cancelled'),
+            defaultValue:'pending'
         },
-        createdAt:{
-            type:DataTypes.TIME,
+        shippingAddress:{
+            type:DataTypes.TEXT
         },
         },
-        {tablename:'Orders',
+        {tablename:'orders',
         timestamps:false,
     });
     return Orders;

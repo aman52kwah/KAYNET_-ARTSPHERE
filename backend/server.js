@@ -14,6 +14,8 @@ import { modelsPromise } from "./models/index.js";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 
+ import paymentsRouter from './routes/Payment.js'
+
 
 const SequelizeStore = connectSessionSequelize(session.Store);
 
@@ -42,8 +44,10 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
+      console.log('Incoming origin:', origin || 'undefined(likely same-origin or non browser)');
       if (!origin|| allowedOrigins.includes(origin)) {
         callback(null, true);
+        
       } else {
         callback(new Error("Not allowed by CORS"));
       }
@@ -126,7 +130,6 @@ passport.use(
             role: "customer",
           });
         }
-
         return done(null, user);
       } catch (error) {
         return done(error, null);
@@ -153,7 +156,7 @@ passport.deserializeUser(async (id, done) => {
 
 
 //======= middle to check authentication
-const isAuthenticated = (res, req, next) => {
+const isAuthenticated = ( req,res, next) => {
   if (req.isAuthenticated()) {
     return next();
   }
@@ -171,7 +174,9 @@ const isAdmin = (req, res, next) => {
 
 function authenticateToken(req, res, next) {
   console.log("Raw cookie:", req.headers.cookie);
-  const token = req.cookies?.token; // Retrieve token from httpOnly cookie
+  console.log('Request from:', req.headers.host, req.method);
+  const token = req.cookies?.token; // Retrieve token from
+  //  httpOnly cookie
   if (!token) {
     return res.status(401).json({ message: "Not Authenticated" });
   }
@@ -494,53 +499,14 @@ app.get('/api/orders',authenticateToken, async (req,res) =>{
 })
 
 
-  //=================== PAYMENT ENDPOINTS ==================//
-  //POST INITIALIZE PAYMENT
-  app.post('/api/payments/initialize', async (_req,res) =>{
-    try {
-      
-      const axios = require("axios");
-      async function initializePayment(req, res) {
-        const { email, amount, reference } = req.body; // Amount = price * 0.5 for custom
-        const response = await axios.post(
-          "https://api.paystack.co/transaction/initialize",
-          {
-            email,
-            amount: amount * 10, // In cedis
-          },
-          {
-            headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET}` },
-          }
-        );
-        res.json(response.data.data);
-      }
+  //=================== PAYMENT ENDPOINTS  ==================//
 
-      res.json({message:'Payment initialization endpoint '});
-      
-    } catch (error) {
-      res.status(400).json({error:error.message});
-    }
-  });
+ 
 
-  //GET VERIFY PAYMENT
-  app.get('/api/payments/verify/:reference',authenticateToken, async (req,res) =>{
-    try {
-      //TODO: Integrate with paystack API
-      const axios = require('axios');
-     const response = await axios.get(
-         `https://api.paystack.co/transaction/verify/${req.params.reference}`,
-          {
-            headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET}` },
-          }
-        );
-      res.json(response.data.data);
-    } catch (error) {
-      res.status(500).json({error:error.message});
-    }
-  });
 
-//
 
+
+  app.use('/api/payments', isAuthenticated, paymentsRouter);
   //===============================SERVER LISTEN ===============================================================
 app.listen(process.env.PORT, (error) => {
   if (error) {

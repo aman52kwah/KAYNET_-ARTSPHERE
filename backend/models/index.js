@@ -4,6 +4,11 @@ import { Products as ProductPromise } from "../models/Products.js";
 import { CustomOrder as CustomOrderPromise } from "../models/CustomOrders.js";
 import { Orders as OrdersPromise } from "../models/Orders.js";
 import { OrderItems as OrderItemsPromise } from "../models/OrderItems.js";
+import {Category as CategoryPromise} from "../models/Category.js";
+import {Style as StylePromise} from "../models/Style.js";
+import {Material as MaterialPromise} from "../models/Material.js";
+import {Payment as PaymentPromise} from "../models/Payment.js";
+
 
 async function initializeModels() {
   const sequelize = await sequelizePromise;
@@ -12,56 +17,41 @@ async function initializeModels() {
   const OrderItems = await OrderItemsPromise;
   const Orders = await OrdersPromise;
   const CustomOrder = await CustomOrderPromise;
+  const Category = await CategoryPromise;
+  const Style = await StylePromise;
+  const Material = await MaterialPromise;
+  const Payment = await PaymentPromise;
 
 //===========define associations================//
-//User Associations (One-to-Many)
-User.hasMany(CustomOrder, { 
-  foreignKey: "userId", 
-  as: "customOrders",
-  onDelete: "CASCADE" 
-});
+User.hasMany(CustomOrder, { foreignKey: 'userId' });
+User.hasMany(Orders, { foreignKey: 'userId' });
 
-User.hasMany(Orders, { 
-  foreignKey: "userId", 
-  as: "orders",
-  onDelete: "CASCADE" 
-});
+Category.hasMany(Style, { foreignKey: 'categoryId' });
+Category.hasMany(Products, { foreignKey: 'categoryId' });
 
-//customOrders Associations (Many-to-One)
-CustomOrder.belongsTo(User, { 
-  foreignKey: "userId", 
-  as: "user" 
-});
+Style.belongsTo(Category, { foreignKey: 'categoryId' });
+Style.hasMany(CustomOrder, { foreignKey: 'styleId' });
 
-//orders Association
-Orders.belongsTo(User, { 
-  foreignKey: "userId", 
-  as: "user" 
-});
+Material.hasMany(CustomOrder, { foreignKey: 'materialId' });
 
-Orders.hasMany(OrderItems, { 
-  foreignKey: "orderId", 
-  as: "orderItems",
-  onDelete: "CASCADE" 
-});
+CustomOrder.belongsTo(User, { foreignKey: 'userId' });
+CustomOrder.belongsTo(Style, { foreignKey: 'styleId' });
+CustomOrder.belongsTo(Material, { foreignKey: 'materialId' });
+CustomOrder.hasMany(Payment, { foreignKey: 'customOrderId' });
 
-//orderItems Associations
-OrderItems.belongsTo(Orders, { 
-  foreignKey: "orderId", 
-  as: "order" 
-});
+Orders.belongsTo(User, { foreignKey: 'userId' });
+Orders.hasMany(OrderItems, { foreignKey: 'orderId' });
+Orders.hasMany(Payment, { foreignKey: 'orderId' });
 
-OrderItems.belongsTo(Products, { 
-  foreignKey: "productId", 
-  as: "product" 
-});
+OrderItems.belongsTo(Orders, { foreignKey: 'orderId' });
+OrderItems.belongsTo(Products, { foreignKey: 'productId' });
 
-//products Association
-Products.hasMany(OrderItems, { 
-  foreignKey: "productId", 
-  as: "orderItems",
-  onDelete: "RESTRICT" 
-});
+Products.belongsTo(Category, { foreignKey: 'categoryId' });
+Products.hasMany(OrderItems, { foreignKey: 'productId' });
+
+Payment.belongsTo(Orders, { foreignKey: 'orderId' });
+Payment.belongsTo(CustomOrder, { foreignKey: 'customOrderId' });
+
 
 
 

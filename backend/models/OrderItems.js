@@ -8,33 +8,32 @@ async function defineOrderItems(){
         throw new Error("sequelize Sequelize instance is undefined. Check db.js configuration.")
     }
     const OrderItems = sequelize.define(
-        'OrderItems',
-        {
-             id:{
-            type:DataTypes.UUID,
-            defaultValue:DataTypes.UUIDV4,
-            primaryKey:true,
-            allowNull:false,
+      "OrderItems",
+      {
+        id: {
+          type: DataTypes.UUID,
+          defaultValue: DataTypes.UUIDV4,
+          primaryKey: true,
+          allowNull: false,
         },
-        orderId:{
-            type:DataTypes.UUID,
-            allowNull:false,
+        orderId: {
+          type: DataTypes.UUID,
+          allowNull: false,
         },
-        productId:{
-            type:DataTypes.UUID,
-            allowNull:false
+        productId: {
+          type: DataTypes.UUID,
+          allowNull: false,
         },
-        quantity:{
-            type:DataTypes.INTEGER,
+        quantity: {
+          type: DataTypes.INTEGER,
         },
-        price:{
-            type:DataTypes.DECIMAL,
+        price: {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: false,
         },
-        
-        },
-        {tablename:'OrderItems',
-        timestamps:false,
-    });
+      },
+      { tablename: "OrderItems", timestamps: false }
+    );
     return OrderItems;
 }
 
@@ -46,11 +45,3 @@ const OrderItemsPromise = defineOrderItems().catch((error)=>{
 
 export{OrderItemsPromise as OrderItems};
 
-
-
-//OrderItems
-// id (PK, integer), 
-// orderId (FK, integer), 
-// productId (FK, integer),
-//  quantity (integer), 
-// price (decimal)

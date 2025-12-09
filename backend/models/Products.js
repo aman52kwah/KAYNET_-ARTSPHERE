@@ -21,24 +21,34 @@ const Products = sequelize.define(
             type:DataTypes.STRING,
             allowNull:false,
         },
+        description:{
+            type:DataTypes.STRING,
+        },
         price:{
-            type:DataTypes.DECIMAL
+            type:DataTypes.DECIMAL(10,2),
+            allowNull:false,
         },
             size:{
             type:DataTypes.STRING,
         },
+        color:{
+            type:DataTypes.STRING,
+        },
+
          material:{
             type:DataTypes.STRING,
         },
-         stock:{
+         stockQuantity:{
             type:DataTypes.INTEGER,
+            defaultValue:0
         },
-         description:{
-            type:DataTypes.STRING,
-        },
+         
         imageUrl:{
             type:DataTypes.STRING
         },
+        categoryId:{
+            type:DataTypes.UUID
+        }
 
 
     },
