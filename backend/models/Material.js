@@ -1,9 +1,7 @@
 import { DataTypes } from "sequelize";
-import { sequelize as sequelizePromise } from '../db/db.js';
-
+import { sequelize as sequelizePromise } from "../db/db.js";
 async function defineMaterial() {
-    
-     const sequelize = await sequelizePromise;
+  const sequelize = await sequelizePromise;
 
 if(!sequelize){
     throw new Error(" Sequelize instance is undefined. Check db.js configuration.")

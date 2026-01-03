@@ -1,519 +1,366 @@
-import 'dotenv/config'
+// server.js
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import session from 'express-session';
-import { Sequelize } from "sequelize";
 import passport from 'passport';
-import bodyParser from 'body-parser';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { createClient } from "redis";
-import "./models/index.js";
-//const jwt = require('jsonwebtoken');
-import connectSessionSequelize from "connect-session-sequelize";
-import { modelsPromise } from "./models/index.js";
-import jwt from "jsonwebtoken";
-import cookieParser from "cookie-parser";
-
- import paymentsRouter from './routes/Payment.js'
+import bcrypt from 'bcrypt';
+//import { sequelize } from './models/index.js';
+//xfimport {User} from './models/User.js'
+//import { modelsPromise } from './models/index.js';
+import db from './models/index.js'; // Import the promise that resolves to all models
 
 
-const SequelizeStore = connectSessionSequelize(session.Store);
+// Import routes
+import categoriesRouter from './routes/categories.js';
+import materialsRouter from './routes/materials.js';
+import stylesRouter from './routes/styles.js';
+import productsRouter from './routes/products.js';
+import customOrdersRouter from './routes/customOrders.js';
+import ordersRouter from './routes/orders.js';
+import paymentsRouter from './routes/payment.js';
+import adminRouter from './routes/admin.js';
 
-const {sequelize, User, Products, OrderItems, Orders, CustomOrder} =await modelsPromise;
+const app = express();
 
-const app= express();
-
-const client = createClient({url :process.env.REDIS_URL});
-
-client.connect();
-
-
-app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({extended:false}));
-
-
-//=============COR CONFIGURATION
+// Allowed origins
 const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.CLIENT_URL,
- " http://localhost:8080",
-];
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.CLIENT_URL
+].filter(Boolean);
 
+//console.log('Allowed CORS origins:', allowedOrigins);
 
+//  CORS configuration (MUST be first)
 app.use(
   cors({
     origin: function (origin, callback) {
-      console.log('Incoming origin:', origin || 'undefined(likely same-origin or non browser)');
-      if (!origin|| allowedOrigins.includes(origin)) {
+      console.log('Incoming origin:', origin || 'same-origin request');
+      
+      // Allow requests with no origin (like mobile apps, Postman, or same-origin)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
-        
       } else {
-        callback(new Error("Not allowed by CORS"));
+        console.warn('❌ CORS blocked origin:', origin);
+        callback(new Error('Not allowed by CORS'));
       }
     },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true, // CRITICAL: Allow cookies
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'], // Expose cookie headers
   })
 );
 
-//log DB TO CONSOLE
-console.log(" DB  CONNECTED SUCESSFULLY");
+//  Body parser (MUST be before session)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const sessionStore = new SequelizeStore({
-  db: sequelize,
-});
-
-//INITIALIZE DB
-async function initializeDatabase() {
-  try {
-    //test connection to the database
-
-    await sequelize.authenticate();
-    console.log("Neon PostgreSQL connection established successfully");
-
-    //sync the models with the database
-    await sequelize.sync({ alter: true });
-    console.log("database synchronized successfully.");
-    await sessionStore.sync();
-  } catch (error) {
-    console.error(error);
-  }
-}
-await initializeDatabase();
-
-
-
-
-
-//===========middleware for session
+//  Session configuration (BEFORE passport)
 app.use(
   session({
-    secret: process.env.SECRET_SESSION || "fallbacksecret", //used to sign session cookies
-    resave: false, // resave session if it is not modified
-    saveUninitialized: false, // dont save unitialized session
-    store: sessionStore, // use the session store created
+    secret: process.env.SESSION_SECRET || 'fallback-secret-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    rolling: true, // Refresh session on every request
+    proxy: true, // Trust proxy if behind one
     cookie: {
-      secure: false, //set to true if using https
-      sameSite:"none", //allow cookies to be sent with cross-site request
-      httpOnly: true, // prevent client side js from acessing the cookie
-      maxAge: 24 * 60 * 60 * 1000, // set cookie to expire in 5 minutes
+      secure: process.env.NODE_ENV === 'production', // true in production (HTTPS only)
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for production cross-origin, 'lax' for dev
     },
   })
 );
+
+//  Passport initialization (AFTER session)
 app.use(passport.initialize());
 app.use(passport.session());
 
-//app.use(jsonParser);
-//app.use(urlencodedParser);
+//  Logging middleware (for debugging)
+app.use((req, res, next) => {
+  console.log(`
+  ═══════════════════════════════════════
+  ${req.method} ${req.url}
+  Session ID: ${req.sessionID}
+  Session User: ${req.session.user ? JSON.stringify(req.session.user) : 'None'}
+  Authenticated: ${req.isAuthenticated ? req.isAuthenticated() : 'N/A'}
+  ═══════════════════════════════════════
+  `);
+  next();
+});
 
-
-//=================== PASSPORT GOOGLE AUTHENTICATION===================//
+// ============================================
+// PASSPORT GOOGLE OAUTH CONFIGURATION
+// ============================================
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:8080/api/auth/google/callback",
-      passReqToCallback: false,
+      callbackURL: '/api/auth/google/callback',
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        let user = await User.findOne({ where: { googleId: profile.id } });
+       
+        const userModel = db.User;
+        let user = await userModel.findOne({ where: { googleId: profile.id } });
 
         if (!user) {
-          user = await User.create({
+          user = await userModel.create({
             googleId: profile.id,
             email: profile.emails[0].value,
             name: profile.displayName,
-            role: "customer",
+            role: 'user',
           });
         }
+
         return done(null, user);
       } catch (error) {
+        console.error('Google auth error:', error);
         return done(error, null);
       }
     }
   )
 );
 
-
-//=================== SERIALIZATION AND DESERIALIZATION==================//
 passport.serializeUser((user, done) => {
+  console.log('✅ Serializing user:', user.id);
   done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await User.findByPk(id);
+    
+    const userModel = db.User;
+    const user = await userModel.findByPk(id);
+    console.log('✅ Deserialized user:', user ? user.id : 'null');
     done(null, user);
   } catch (error) {
+    console.error('❌ Deserialize error:', error);
     done(error, null);
   }
 });
 
+// ============================================
+// AUTHENTICATION ROUTES
+// ============================================
 
-
-//======= middle to check authentication
-const isAuthenticated = ( req,res, next) => {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.status(401).json({ message: "unauthorized" });
-};
-
-
-//======middle to authenticate admin role
-const isAdmin = (req, res, next) => {
-  if (req.isAuthenticated() && req.user.role === "admin") {
-    return next();
-  }
-  res.status(403).json({ message: "Forbidden: Admin access required" });
-};
-
-function authenticateToken(req, res, next) {
-  console.log("Raw cookie:", req.headers.cookie);
-  console.log('Request from:', req.headers.host, req.method);
-  const token = req.cookies?.token; // Retrieve token from
-  //  httpOnly cookie
-  if (!token) {
-    return res.status(401).json({ message: "Not Authenticated" });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: "Invalid Token" });
-    }
-    req.user = user; // Attach decoded user to req for use in routes
-    next();
-  });
-}
-
-
-// Helper function to invalidate cache
-async function invalidateUserCache(userId) {
-  const keys = await client.keys(`user:${userId}:*`);
-  if (keys.length > 0) {
-    await client.del(keys);
-    console.log(`Invalidated ${keys.length} cache entries for user ${userId}`);
-  }
-}
-
-
-
-//======================= cache implementation =======================
-app.get("/api/data", authenticateToken,isAuthenticated, async (req, res) => {
+// Register Route
+app.post('/api/auth/register', async (req, res) => {
   try {
 
-    const userId = req.user.id;
-    const cacheKey = `user:${userId}:data`;
+    const userModel =db.User;
+    const { name, email, password } = req.body;
 
-   let data = await client.get(cacheKey);
+    console.log('📝 Registration attempt:', { name, email });
 
-   if (data) {
-      console.log("Cache hit");
-      return res.json(JSON.parse(data));
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
 
-    console.log("Cache miss - Fetching from database");
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
 
+    const existingUser = await userModel.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
 
-    //fetching actual data from database
-    const user = await User.findByPk(userId, {
-      attributes: { exclude: ["password"] }, // exclude sensitive data
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await userModel.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'user',
     });
-    if (!user) {
-      res.status(404).json({ message: "User not found" });
-    }
 
-    //prepare response data
-    data = {
-      user: user.toJSON(),
-      message: "Fresh data from database",
+    // Set user in session
+    req.session.user = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
     };
 
-    // Simulate slow API call
-    await client.set(cacheKey, JSON.stringify(data), { EX: 3600 }); // Expires in 1 hours
-    res.json(data);
-  } catch (error) {
-    console.error("fetching data:", error);
-    res.status(500).json({ message: "internal server error" });
-  }
-});
+    console.log('✅ User registered:', user.email);
+    console.log('✅ Session user set:', req.session.user);
 
-    //check if user is Authenticated
-    //if (!req.isAuthenticated()) {
-     // return res.status(401).json({ message: "Not Authenticated" });
-    //}
-    
-  
-// cache user's orders
-app.get("/api/user/orders", authenticateToken, async (req, res) => {
-  try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not found" });
-    }
+    // Force save session
+    req.session.save((err) => {
+      if (err) {
+        console.error('❌ Session save error:', err);
+        return res.status(500).json({ message: 'Registration successful but session failed' });
+      }
 
-    const userId = req.user.id;
-    const cacheKey = `user:${userId}:orders`;
-
-    //try cache first
-    let cachedOrders = await client.get(cacheKey);
-    if (cachedOrders) {
-      console.log("cache hit-Orders");
-      return res.json(JSON.parse(cachedOrders));
-    }
-    console.log("cache miss - fetching orders from database");
-    // fetch from database
-    const orders = await Orders.findAll({
-      where: { userId: userId },
-      include: [
-        {
-          model: OrderItems,
-          include: [Products],
+      console.log('✅ Session saved successfully');
+      res.status(201).json({
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
         },
-      ],
-      order: [["createdAt", "DESC"]],
+      });
     });
-    const data = {
-      orders: orders.map((order) => order.toJSON()),
-      count: orders.length,
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ message: 'Registration failed', error: error.message });
+  }
+});
+
+// Login Route
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const UserModel =db.User;
+    const { email, password } = req.body;
+
+    console.log('🔐 Login attempt:', email);
+
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+    
+    const user = await UserModel.findOne({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    if (!user.password) {
+      return res.status(401).json({
+        message: 'This account uses Google login. Please sign in with Google.',
+      });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Set user in session
+    req.session.user = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
     };
 
-    // cache for 10 munites
-    await client.set(cacheKey, JSON.stringify(data), { EX: 600 }); // Expires in 1 hours
-    res.json(data);
-  } catch (error) {
-    console.error("Error fetching orders", error);
-    res.status(500).json({ message: "Internal server Error" });
-  }
-});
+    console.log('✅ User logged in:', user.email);
+    console.log('✅ Session user set:', req.session.user);
 
-//cache products
+    // Force save session
+    req.session.save((err) => {
+      if (err) {
+        console.error('❌ Session save error:', err);
+        return res.status(500).json({ message: 'Login successful but session failed' });
+      }
 
-/// ================= END OF CACHING.  =================
-
-//===================  AUTH ROUTES ==================//
-
-app.get(
-  "/auth/google",
-  passport.authenticate("google", { scope: ["profile","email"] })
-);
-
-app.get(
-  "/api/auth/google/callback",
-  passport.authenticate("google", { session: false }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: "none",
-      secure: false, //set to true in production with https
-    });
-
-    res.redirect("http://localhost:5173");
-  }
-);
-
-//=====get user=====
-app.get("/api/auth/user", (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json(req.user);
-  } else {
-    res.status(401).json({ message: "Not authenticated" });
-  }
-});
-
-app.post("/api/auth/logout", (req, res) => {
-  req.logout(() => {
-    res.json({ message: "Logout successfully" });
-  });
-});
-
-
-
-// ==================USER END POINT
-
-
-
-/*API endpoints
-GET,/products,List ready-made products (filter by size/material),No
-POST,/products,Create product (admin),Yes (Admin)
-PUT,/products/:id,Update product,Yes (Admin)
-DELETE,/products/:id,Delete product,Yes (Admin)
-POST,/custom-orders,"Create custom order, calculate price & 50% payment",Yes
-GET,/orders,Get user orders,Yes
-POST,/payments/initialize,Initialize Paystack transaction (50% or full),Yes
-GET,/payments/verify/:reference,"Verify payment, update order status",Yes */
-
-
-
-//=========== GET ALL USERS ==================
-app.get('/api/users', async( req,res) =>{
-  try {
-    const users = await User.findAll();
-    res.json(users)
-  } catch (error) {
-    console.error("users not found",error);
-    res.status(500).json({message:"internal server error"});
-  }
-});
-//GET USER BY ID
-app.get('/api/users/:id',async(req,res)=>{
-  try {
-    const user = await User.findByPk(req.params.id);
-     if(!user) return res.status(404).json({error:'user not found'});
-     res.json(user);
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-// POST create user ()
-app.post('/api/users', async (req,res)=>{
-  try {
-    const user = await User.create(req.body);
-    res.status(201).json(user)
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-//PUT update user 
-app.put('/api/users/:id',async (req,res) =>{
-  try {
-    const user = await User.findByPk(req.params.id);
-    if(!user) return res.status(404).json({error:'Product not found'});
-
-    await user.update(req.body);
-    res.json(user);
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-//DELETE user
-app.delete('/api/users/:id',async(req,res) =>{
-  try {
-      const user = await User.findByPk(req.params.id);
-      if(!user) return res.status(404).json({error:'User not found'});
-
-      await user.destroy();
-      res.json({message:'user deleted successfully'});
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-//=================== PRODUCTS ENDPOINTS ==================//
-
-// GET all products with optional filters
-app.get('/api/products',async (req,res) => {
-  try{
-    const {size,material}= req.query;
-    const where = {};
-
-    if(size) where.size = size;
-    if(material) where.material = material;
-
-    const products = await Products.findAll({where});
-    res.json(products);
-  } catch(error){
-    res.status(500).json({error:error.message});
-  }
-});
-
-// POST create product (admin only)
-app.post('/api/products',isAdmin, async (req,res)=>{
-  try {
-    const product = await Products.create(req.body);
-    res.status(201).json(product)
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-//PUT update product (admin only)
-app.put('/api/products/:id',isAdmin,async (req,res) =>{
-  try {
-    const product = await Products.findByPk(req.params.id);
-    if(!product) return res.status(404).json({error:'Product not found'});
-
-    await product.update(req.body);
-    res.json(product);
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-//DELETE products (admin only)
-app.delete('/api/product/:id',isAdmin,async(req,res) =>{
-  try {
-      const product = await Products.findByPk(req.params.id);
-      if(!product) return res.status(404).json({error:'Product not found'});
-
-      await product.destroy();
-      res.json({message:'Product deleted'});
-  } catch (error) {
-    res.status(400).json({error:error.message});
-  }
-});
-
-  //=================== CUSTOM ORDERS ENDPOINTS ==================//
-  //POST create custom orders
-  app.get('/api/custom-orders',authenticateToken, async (req,res) =>{
-    try {
-      const customOrder = await CustomOrder.create({
-        ...req.body,
-        userId:req.user.id,
-        paymentStatus:'pending',
-        amountDue: req.body.totalPrice * 0.5 //50% deposit
+      console.log('✅ Session saved successfully');
+      res.json({
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
       });
-      res.status(201).json(customOrder);
-    } catch (error) {
-      res.status(400).json({error:error.message});
+    });
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({ message: 'Login failed', error: error.message });
+  }
+});
+
+// Google OAuth Routes
+app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get(
+  '/api/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    // Set user in session for consistency
+    req.session.user = {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+    };
+
+    console.log('✅ Google OAuth successful:', req.user.email);
+    res.redirect(process.env.CLIENT_URL || 'http://localhost:5173');
+  }
+);
+
+// Get current user
+app.get('/api/auth/user', (req, res) => {
+  console.log('=== GET /api/auth/user ===');
+  console.log('Session User:', req.session.user);
+  console.log('Passport User:', req.user);
+
+  // Check session first, then passport
+  if (req.session && req.session.user) {
+    return res.json(req.session.user);
+  }
+
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    return res.json(req.user);
+  }
+
+  res.status(401).json({ message: 'Not authenticated' });
+});
+
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('❌ Logout error:', err);
+      return res.status(500).json({ message: 'Logout failed' });
     }
+
+    res.clearCookie('connect.sid');
+    console.log('✅ User logged out');
+    res.json({ message: 'Logged out successfully' });
+  });
+});
+
+// ============================================
+// API ROUTES
+// ============================================
+app.use('/api/categories', categoriesRouter);
+app.use('/api/materials', materialsRouter);
+app.use('/api/styles', stylesRouter);
+app.use('/api/products', productsRouter);
+app.use('/api/custom-orders', customOrdersRouter);
+app.use('/api/orders', ordersRouter);
+app.use('/api/payments', paymentsRouter);
+app.use('/api/admin', adminRouter);
+
+// ============================================
+// DATABASE SYNC AND SERVER START
+// ============================================
+const PORT = process.env.PORT || 8080;
+
+db.sequelize
+  .sync({ alter: true })
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`
+      ╔═══════════════════════════════════════╗
+      ║   🚀 Server running on port ${PORT}     ║
+      ║   📍 http://localhost:${PORT}           ║
+      ╚════════════════════════════════════════╝
+      `);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database connection failed:', err);
   });
 
-
-//=================== ORDERS ENDPOINTS ==================//
-
-// GET user orders
-app.get('/api/orders',authenticateToken, async (req,res) =>{
-  try {
-    const orders = await Orders.findAll({
-      where:{userId:req.user.id},
-      include:[OrderItems]
-    });
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({error:error.message});
-  }
-})
-
-
-  //=================== PAYMENT ENDPOINTS  ==================//
-
- 
-
-
-
-
-  app.use('/api/payments', isAuthenticated, paymentsRouter);
-  //===============================SERVER LISTEN ===============================================================
-app.listen(process.env.PORT, (error) => {
-  if (error) {
-    console.log("Creation of server failed:", error);
-    return;
-  }
-  console.log("server is listening on port 8080");
-});
-//==============================================================================================
- 
+export default app;

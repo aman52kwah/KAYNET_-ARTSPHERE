@@ -1,0 +1,6 @@
+// .sequelizerc
+import { resolve } from 'path';
+
+export default {
+  'config': resolve('config', 'config.js')  // Path to your config.js
+};

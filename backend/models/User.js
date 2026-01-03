@@ -8,7 +8,7 @@ if(!sequelize){
     throw new Error("sequelize Sequelize instance is undefined. Check db.js configuration.")
 }
 const User = sequelize.define(
-  "user",
+  "User",
   {
     id: {
       type: DataTypes.UUID,
@@ -25,6 +25,10 @@ const User = sequelize.define(
     name: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    password:{
+        type:DataTypes.STRING,
+        allowNull:true,
     },
     authSource: {
       type: DataTypes.ENUM("google"),
@@ -44,8 +48,14 @@ const User = sequelize.define(
     address: {
       type: DataTypes.TEXT,
     },
+    city:{
+        type:DataTypes.TEXT,
+    },
+    country:{
+        type:DataTypes.TEXT,
+    }
   },
-  { tablename: "user", timestamps: false }
+  { tablename: "Users", timestamps: false }
 );
     return User;
 }
