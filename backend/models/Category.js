@@ -9,26 +9,43 @@ if(!sequelize){
     throw new Error(" Sequelize instance is undefined. Check db.js configuration.")
 }
 const Category = sequelize.define(
-    'category',
-    {
-        id:{
-            type:DataTypes.UUID,
-            defaultValue:DataTypes.UUIDV4,
-            primaryKey:true,
-        },
-     
-        name:{
-            type:DataTypes.STRING,
-            allowNull:false,
-        },
-        description:{
-            type:DataTypes.STRING,
-        },
-
+  "category",
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
     },
-    {tablename:'category',
-        timestamps:false,
-    });
+
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    description: {
+      type: DataTypes.STRING,
+    },
+    imgaeUrl: {
+      type: DataTypes.STRING,
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    displayOrder: {
+      type: DataTypes.INTEGER,
+    },
+    metadata: {
+      type: DataTypes.JSONB,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+    },
+  },
+  { tablename: "category", timestamps: false }
+);
     return Category;
 }
 

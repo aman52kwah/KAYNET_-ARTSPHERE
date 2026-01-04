@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import db from '../models/index.js';
+import models from "../models/index.js";
 
 const router = express.Router();
 
@@ -13,10 +13,10 @@ router.post("/", async (req, res) => {
         .status(401)
         .json({ message: "Unauthorized - Please login first" });
     }
-   
-    const styleModel = db.Style;
-    const materialModel = db.Material;
-    const CustomOrderModel = db.CustomOrder;
+   const dbModels = models;
+   const styleModel = dbModels.Style;
+   const materialModel = dbModels.Material;
+   const CustomOrderModel = dbModels.CustomOrder;
 
     const { styleId, materialId, size, measurements, specialInstructions } =
       req.body;
@@ -59,14 +59,17 @@ router.get("/", async (req, res) => {
         .status(401)
         .json({ message: "Unauthorized - Please login first" });
     }
-    
-    const customOrderModel = db.CustomOrder;
-    const styleModel = db.Style;
-    const materialModel = db.Material;
+    const dbModels = models;
+    const customOrderModel = dbModels.CustomOrder;
+    const styleModel = dbModels.Style;
+    const materialModel = dbModels.Material;
 
     const orders = await customOrderModel.findAll({
       where: { userId: req.user.id },
-      include: [{ model: styleModel,as:'style' }, { model: materialModel, as:'material' }],
+      include: [
+        { model: styleModel, as: "style" },
+        { model: materialModel, as: "material" },
+      ],
       order: [["createdAt", "DESC"]],
     });
 
@@ -87,14 +90,17 @@ router.get("/:id", async (req, res) => {
         .status(401)
         .json({ message: "Unauthorized - Please login first" });
     }
-    
-    const CustomOrderModel = db.CustomOrder;
-    const styleModel = db.Style;
-    const materialModel = db.Material;
+    const dbModels = models;
+    const CustomOrderModel = dbModels.CustomOrder;
+    const styleModel = dbModels.Style;
+    const materialModel = dbModels.Material;
 
     const order = await CustomOrderModel.findOne({
       where: { id: req.params.id, userId: req.user.id },
-      include: [{ model: styleModel,as:'style' }, { model: materialModel,as:'materials' }],
+      include: [
+        { model: styleModel, as: "style" },
+        { model: materialModel, as: "materials" },
+      ],
     });
 
     if (!order) {

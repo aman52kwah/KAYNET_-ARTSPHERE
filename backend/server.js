@@ -7,9 +7,9 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import bcrypt from 'bcrypt';
 //import { sequelize } from './models/index.js';
-//xfimport {User} from './models/User.js'
+import {User} from './models/User.js'
 //import { modelsPromise } from './models/index.js';
-import db from './models/index.js'; // Import the promise that resolves to all models
+import models from './models/index.js'; // Import the promise that resolves to all models
 
 
 // Import routes
@@ -108,8 +108,8 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-       
-        const userModel = db.User;
+       const dbModels = models;
+        const userModel = dbModels.User;
         let user = await userModel.findOne({ where: { googleId: profile.id } });
 
         if (!user) {
@@ -137,8 +137,8 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    
-    const userModel = db.User;
+    const dbModels = models;
+    const userModel = dbModels.User;
     const user = await userModel.findByPk(id);
     console.log('✅ Deserialized user:', user ? user.id : 'null');
     done(null, user);
@@ -155,8 +155,8 @@ passport.deserializeUser(async (id, done) => {
 // Register Route
 app.post('/api/auth/register', async (req, res) => {
   try {
-
-    const userModel =db.User;
+    const dbModels = models;
+    const userModel =dbModels.User;
     const { name, email, password } = req.body;
 
     console.log('📝 Registration attempt:', { name, email });
@@ -219,7 +219,8 @@ app.post('/api/auth/register', async (req, res) => {
 // Login Route
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const UserModel =db.User;
+    const dbModels = models;
+    const UserModel =dbModels.User;
     const { email, password } = req.body;
 
     console.log('🔐 Login attempt:', email);

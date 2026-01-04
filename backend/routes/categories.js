@@ -1,12 +1,14 @@
 import 'dotenv/config'
 import express from 'express';
-import db from '../models/index.js';  // Change to default import
+//import {modelsPromise} from '../models/index.js';  // Change to default import
+import models from '../models/index.js';
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const CategoryModel = db.Category;
+    const dbModels = models;
+    const CategoryModel = dbModels.Category;
     const categories = await CategoryModel.findAll();
     res.json(categories);
   } catch (error) {

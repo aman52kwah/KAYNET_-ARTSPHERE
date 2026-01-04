@@ -65,7 +65,7 @@ const CustomOrder = sequelize.define(
 }
 
 const CustomOrderPromise = defineCustomOrder().catch((error)=>{
-    console.error('Failed to define Custom Orders model:',error);
+    console.error('Failed to define CustomOrders model:',error);
     throw error;
 });
 
