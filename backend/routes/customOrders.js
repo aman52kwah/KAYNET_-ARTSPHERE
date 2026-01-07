@@ -1,118 +1,96 @@
-import "dotenv/config";
+// routes/customOrders.js - ADD THESE ENDPOINTS TO YOUR EXISTING CUSTOM ORDERS ROUTE FILE
+
 import express from "express";
 import models from "../models/index.js";
 
 const router = express.Router();
 
-//create customer order
-// Create custom order
-router.post("/", async (req, res) => {
-  try {
-    if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized - Please login first" });
-    }
-   const dbModels = models;
-   const styleModel = dbModels.Style;
-   const materialModel = dbModels.Material;
-   const CustomOrderModel = dbModels.CustomOrder;
-
-    const { styleId, materialId, size, measurements, specialInstructions } =
-      req.body;
-
-    const style = await styleModel.findByPk(styleId);
-    const material = await materialModel.findByPk(materialId);
-
-    if (!style || !material) {
-      return res.status(404).json({ message: "Style or material not found" });
-    }
-
-    const materialCost = parseFloat(material.pricePerMeter) * 2; // Assuming 2 meters
-    const totalPrice = parseFloat(style.basePrice) + materialCost;
-
-    const customOrder = await CustomOrderModel.create({
-      userId: req.user.id,
-      styleId,
-      materialId,
-      size,
-      measurements: measurements || {},
-      specialInstructions,
-      totalPrice: totalPrice.toFixed(2),
-      status: "pending",
-    });
-
-    res.status(201).json(customOrder);
-  } catch (error) {
-    console.error("Error creating custom order:", error);
-    res
-      .status(500)
-      .json({ message: "Error creating custom order", error: error.message });
+// Middleware to check if user is authenticated
+const isAuthenticated = (req, res, next) => {
+  if (!req.session || !req.session.user) {
+    return res
+      .status(401)
+      .json({ message: "Unauthorized - Please login first" });
   }
-});
+  req.user = req.session.user;
+  next();
+};
 
-// Get user's custom orders
-router.get("/", async (req, res) => {
+// GET /api/custom-orders - Get current user's custom orders
+router.get("/", isAuthenticated, async (req, res) => {
   try {
-    if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized - Please login first" });
-    }
-    const dbModels = models;
+    console.log("🎨 Fetching custom orders for user:", req.user.id);
+    const dbModels = await models;
     const customOrderModel = dbModels.CustomOrder;
     const styleModel = dbModels.Style;
     const materialModel = dbModels.Material;
 
-    const orders = await customOrderModel.findAll({
+    const customOrders = await customOrderModel.findAll({
       where: { userId: req.user.id },
       include: [
-        { model: styleModel, as: "style" },
-        { model: materialModel, as: "material" },
+        {
+          model: styleModel,
+          as: "Style",
+          attributes: ["name", "imageUrl", "description"],
+        },
+        {
+          model: materialModel,
+          as: "Material",
+          //attributes: ["name", "type", "pricePerUnit"],
+        },
       ],
       order: [["createdAt", "DESC"]],
     });
 
-    res.json(orders);
+    console.log(
+      `✅ Found ${customOrders.length} custom orders for user ${req.user.id}`
+    );
+    res.json(customOrders);
   } catch (error) {
-    console.error("Error fetching custom orders:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching custom orders", error: error.message });
+    console.error("❌ Error fetching user custom orders:", error);
+    res.status(500).json({
+      message: "Error fetching custom orders",
+      error: error.message,
+    });
   }
 });
 
-// Get single custom order
-router.get("/:id", async (req, res) => {
+// GET /api/custom-orders/:id - Get specific custom order by ID
+router.get("/:id", isAuthenticated, async (req, res) => {
   try {
-    if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized - Please login first" });
-    }
-    const dbModels = models;
-    const CustomOrderModel = dbModels.CustomOrder;
+    const dbModels = await models;
+    const customOrderModel = dbModels.CustomOrder;
     const styleModel = dbModels.Style;
     const materialModel = dbModels.Material;
 
-    const order = await CustomOrderModel.findOne({
-      where: { id: req.params.id, userId: req.user.id },
+    const customOrder = await customOrderModel.findOne({
+      where: {
+        id: req.params.id,
+        userId: req.user.id, // Ensure user can only see their own orders
+      },
       include: [
-        { model: styleModel, as: "style" },
-        { model: materialModel, as: "materials" },
+        {
+          model: styleModel,
+          as: "Style",
+        },
+        {
+          model: materialModel,
+          as: "Material",
+        },
       ],
     });
 
-    if (!order) {
+    if (!customOrder) {
       return res.status(404).json({ message: "Custom order not found" });
     }
 
-    res.json(order);
+    res.json(customOrder);
   } catch (error) {
     console.error("Error fetching custom order:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching custom order", error: error.message });
+    res.status(500).json({
+      message: "Error fetching custom order",
+      error: error.message,
+    });
   }
 });
 

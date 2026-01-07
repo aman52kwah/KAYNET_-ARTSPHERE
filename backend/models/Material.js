@@ -27,8 +27,8 @@ const Material = sequelize.define('Material',
     defaultValue: true
   },
 },
-    {tablename:'material',
-        timestamps:false,
+    {tableName:'Material',
+        timestamps:true,
     }
 );
 

@@ -161,7 +161,7 @@ async function defineProducts() {
       },
     },
     {
-      tableName: "Payments",
+      tableName: "Products",
       timestamps: true,
     }
   );

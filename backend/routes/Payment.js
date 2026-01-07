@@ -303,7 +303,7 @@ import axios from "axios";
 import express from "express";
 import crypto from "crypto";
 import { requireAuth } from "../middleware/auth.js";
-import db from '../models/index.js';
+import models from '../models/index.js';
 
 const router = express.Router();
 
@@ -313,9 +313,9 @@ const PAYSTACK_BASE_URL = "https://api.paystack.co";
 // Initialize payment for custom orders (50% deposit)
 router.post("/initialize-custom-order", requireAuth, async (req, res) => {
   try {
-    
-    const paymentModel = db.Payment;
-    const customOrderModel = db.CustomOrder;
+    const dbModels = await models;
+    const paymentModel = dbModels.Payment;
+    const customOrderModel = dbModels.CustomOrder;
     const { customOrderId } = req.body;
     const customOrder = await customOrderModel.findByPk(customOrderId);
 
@@ -381,9 +381,9 @@ router.post("/initialize-custom-order", requireAuth, async (req, res) => {
 // Initialize payment for ready-made order (full payment)
 router.post("/initialize-order", requireAuth, async (req, res) => {
   try {
-    
-    const orderModel = db.Orders;
-    const paymentModel = db.Payment;
+    const dbModels = await models;
+    const orderModel = dbModels.Orders;
+    const paymentModel = dbModels.Payment;
     const { orderId } = req.body;
     const order = await orderModel.findByPk(orderId);
 
@@ -448,10 +448,10 @@ router.post("/initialize-order", requireAuth, async (req, res) => {
 // Verify payment
 router.get("/verify/:reference", async (req, res) => {
   try {
-    
-    const customOrderModel = db.CustomOrder;
-    const orderModel = db.Orders;
-    const paymentModel = db.Payment;
+    const dbModels = await models;
+    const customOrderModel = dbModels.CustomOrder;
+    const orderModel = dbModels.Orders;
+    const paymentModel = dbModels.Payment;
     const { reference } = req.params;
 
     // Verify transaction with paystack
@@ -519,10 +519,10 @@ router.get("/verify/:reference", async (req, res) => {
 // Paystack webhook for payment notification
 router.post("/webhook", async (req, res) => {
   try {
-  
-    const paymentModel = db.Payment;
-    const customOrderModel = db.CustomOrder;
-    const orderModel = db.Orders;
+    const dbModels = await models;
+    const paymentModel = dbModels.Payment;
+    const customOrderModel = dbModels.CustomOrder;
+    const orderModel = dbModels.Orders;
     const hash = crypto
       .createHmac("sha512", PAYSTACK_SECRET_KEY)
       .update(JSON.stringify(req.body))
@@ -574,12 +574,13 @@ router.post("/webhook", async (req, res) => {
 // Get user payment history
 router.get("/history", requireAuth, async (req, res) => {
   try {
-    const { Op } = db.Sequelize;
-    const paymentModel = db.Payment;
+    const { Op } = Sequelize;
+    const dbModels = await models;
+    const paymentModel = dbModels.Payment;
     const payments = await paymentModel.findAll({
       include: [
-        { model: db.Orders },
-        { model: db.CustomOrder },
+        { model: dbModels.Orders },
+        { model: dbModels.CustomOrder },
       ],
       where: {
         [Op.or]: [

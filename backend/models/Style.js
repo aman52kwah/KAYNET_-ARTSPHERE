@@ -32,6 +32,11 @@ async function defineStyle() {
 
       categoryId: {
         type: DataTypes.UUID,
+        allowNull: false,
+        references: {
+          model: "Categories",
+          key: "id",
+        },
       },
     },
     {

@@ -9,7 +9,7 @@ if(!sequelize){
     throw new Error(" Sequelize instance is undefined. Check db.js configuration.")
 }
 const Category = sequelize.define(
-  "category",
+  "Categories",
   {
     id: {
       type: DataTypes.UUID,
@@ -44,7 +44,7 @@ const Category = sequelize.define(
       type: DataTypes.DATE,
     },
   },
-  { tablename: "category", timestamps: false }
+  { tablename: "Categories", timestamps: false }
 );
     return Category;
 }

@@ -1,6 +1,13 @@
 'use strict';
 
 export async function up(queryInterface, Sequelize) {
+
+  const tableDescription = await queryInterface.describeTable('Payments');
+  
+  if (tableDescription.categoryId) {
+    await queryInterface.removeColumn('Payments', 'categoryId');
+  }
+}
   await queryInterface.createTable('Payments', {
     id: {
       type: Sequelize.UUID,

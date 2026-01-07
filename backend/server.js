@@ -6,8 +6,8 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import bcrypt from 'bcrypt';
-//import { sequelize } from './models/index.js';
-import {User} from './models/User.js'
+import { sequelize } from './models/index.js';
+//import {User} from './models/User.js'
 //import { modelsPromise } from './models/index.js';
 import models from './models/index.js'; // Import the promise that resolves to all models
 
@@ -20,7 +20,7 @@ import productsRouter from './routes/products.js';
 import customOrdersRouter from './routes/customOrders.js';
 import ordersRouter from './routes/orders.js';
 import paymentsRouter from './routes/payment.js';
-import adminRouter from './routes/admin.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 
@@ -338,17 +338,17 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/materials', materialsRouter);
 app.use('/api/styles', stylesRouter);
 app.use('/api/products', productsRouter);
-app.use('/api/custom-orders', customOrdersRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/custom-orders', customOrdersRouter);
 app.use('/api/payments', paymentsRouter);
-app.use('/api/admin', adminRouter);
+app.use('/api/admin', adminRoutes)
 
 // ============================================
 // DATABASE SYNC AND SERVER START
 // ============================================
 const PORT = process.env.PORT || 8080;
 
-db.sequelize
+sequelize
   .sync({ alter: true })
   .then(() => {
     app.listen(PORT, () => {

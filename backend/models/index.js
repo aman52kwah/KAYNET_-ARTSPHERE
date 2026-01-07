@@ -85,7 +85,7 @@ async function initializeModels() {
   
   Products.hasMany(OrderItems, { 
     foreignKey: 'productId',
-    as: 'orderItems',
+    as: 'OrderItems',
     onDelete: 'RESTRICT'
   });
 
@@ -94,10 +94,15 @@ async function initializeModels() {
     foreignKey: 'userId',
     as: 'user'
   });
+  Orders.belongsTo(CustomOrder, {
+  foreignKey: 'customOrderId',
+  as: 'CustomOrder',
+  constraints: false,
+});
   
   Orders.hasMany(OrderItems, { 
     foreignKey: 'orderId',
-    as: 'items',
+    as: 'OrderItems',
     onDelete: 'CASCADE'
   });
   
@@ -115,7 +120,7 @@ async function initializeModels() {
   
   OrderItems.belongsTo(Products, { 
     foreignKey: 'productId',
-    as: 'product'
+    as: 'Products'
   });
 
   // CUSTOM ORDER ASSOCIATIONS
@@ -123,15 +128,20 @@ async function initializeModels() {
     foreignKey: 'userId',
     as: 'user'
   });
+  CustomOrder.hasOne(Orders, {
+  foreignKey: 'customOrderId',
+  as: 'Order',
+  constraints: false,
+});
   
   CustomOrder.belongsTo(Style, { 
     foreignKey: 'styleId',
-    as: 'style'
+    as: 'Style'
   });
   
   CustomOrder.belongsTo(Material, { 
     foreignKey: 'materialId',
-    as: 'material'
+    as: 'Material'
   });
   
   CustomOrder.hasMany(Payment, { 

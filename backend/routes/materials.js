@@ -1,11 +1,11 @@
 import express from 'express';
 const router = express.Router();
-import db from '../models/index.js';
+import models from '../models/index.js';
 
 router.get('/',async(req,res)=>{
     try {
-       
-        const MaterialModel = db.Material;
+       const dbModels = models;
+        const MaterialModel = dbModels.Material;
         const materials = await MaterialModel.findAll();
         res.json(materials);
     } catch (error) {
