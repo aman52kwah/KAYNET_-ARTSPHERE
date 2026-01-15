@@ -17,7 +17,7 @@ import categoriesRouter from './routes/categories.js';
 import materialsRouter from './routes/materials.js';
 import stylesRouter from './routes/styles.js';
 import productsRouter from './routes/products.js';
-import customOrdersRouter from './routes/customOrders.js';
+import customOrdersRoutes from './routes/customOrders.js';
 import ordersRouter from './routes/orders.js';
 import paymentsRouter from './routes/payment.js';
 import adminRoutes from './routes/admin.js';
@@ -339,7 +339,7 @@ app.use('/api/materials', materialsRouter);
 app.use('/api/styles', stylesRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
-app.use('/api/custom-orders', customOrdersRouter);
+app.use('/api/custom-orders', customOrdersRoutes);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/admin', adminRoutes)
 
