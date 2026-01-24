@@ -385,14 +385,166 @@ router.get('/custom-orders', async (req, res) => {
 
 
 
+// POST /api/products - Create a new product
+// POST /api/admin/products - Create a new product
+// POST /api/admin/products - Create a new product
+router.post('/products', async (req, res) => {
+  try {
+    console.log('📦 Creating new product...');
+    console.log('Request body:', req.body);
+    
+    const { name, price, categoryId, stock, sizes, description, imageUrl } = req.body;
 
+    // Validation
+    if (!name || !price || !categoryId || stock === undefined || !sizes || sizes.length === 0) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: name, price, categoryId, stock, and sizes are required' 
+      });
+    }
 
+    const dbModels = await models;
+    const productModel = dbModels.Products;
+    const categoryModel = dbModels.Category;
 
+    // Create the product
+    const newProduct = await productModel.create({
+      name,
+      price: parseFloat(price),
+      categoryId,
+      stockQuantity: parseInt(stock), // ✅ Use stockQuantity (database field)
+      sizes: sizes, // ✅ Don't stringify - PostgreSQL ARRAY handles it
+      description: description || null,
+      imageUrl: imageUrl || null,
+    });
 
+    console.log('✅ Product created:', newProduct.id);
 
+    // Fetch the product with category info
+    const productWithCategory = await productModel.findByPk(newProduct.id, {
+      include: [
+        {
+          model: categoryModel,
+          as: 'category',
+          attributes: ['id', 'name']
+        }
+      ]
+    });
 
+    // ✅ Transform response to match frontend expectations
+    const productData = productWithCategory.toJSON();
+    const response = {
+      ...productData,
+      stock: productData.stockQuantity, // Map to stock
+      Category: productData.category // Map to Category (capitalized)
+    };
 
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('❌ Error creating product:', error);
+    res.status(500).json({
+      message: 'Error creating product',
+      error: error.message,
+    });
+  }
+});
+
+// PUT /api/admin/products/:id - Update a product
+router.put("/products/:id", async (req, res) => {
+  try {
+    console.log("📝 Updating product:", req.params.id);
+    console.log("Request body:", req.body);
+
+    const { name, price, categoryId, stock, sizes, description, imageUrl } = req.body;
+
+    const dbModels = await models;
+    const productModel = dbModels.Products;
+    const categoryModel = dbModels.Category;
+
+    const product = await productModel.findByPk(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Update the product
+    await product.update({
+      name,
+      price: parseFloat(price),
+      categoryId,
+      stockQuantity: parseInt(stock), // ✅ Use stockQuantity (database field)
+      sizes: sizes, // ✅ Don't stringify - PostgreSQL ARRAY handles it
+      description: description || null,
+      imageUrl: imageUrl || null,
+    });
+
+    console.log("✅ Product updated:", product.id);
+
+    // Fetch updated product with category
+    const updatedProduct = await productModel.findByPk(product.id, {
+      include: [
+        {
+          model: categoryModel,
+          as: "category",
+          attributes: ["id", "name"],
+        },
+      ],
+    });
+
+    // ✅ Transform response to match frontend expectations
+    const productData = updatedProduct.toJSON();
+    const response = {
+      ...productData,
+      stock: productData.stockQuantity, // Map to stock
+      Category: productData.category // Map to Category (capitalized)
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("❌ Error updating product:", error);
+    res.status(500).json({
+      message: "Error updating product",
+      error: error.message,
+    });
+  }
+});
+
+// DELETE /api/admin/products/:id - Delete a product  
+router.delete("/products/:id", async (req, res) => {
+  try {
+    console.log('🗑️ Deleting product:', req.params.id);
+    
+    const dbModels = await models;
+    const productModel = dbModels.Products;
+
+    const product = await productModel.findByPk(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    await product.destroy();
+
+    console.log('✅ Product deleted:', req.params.id);
+
+    res.json({
+      message: "Product deleted successfully",
+      id: req.params.id,
+    });
+  } catch (error) {
+    console.error("❌ Error deleting product:", error);
+    res.status(500).json({ 
+      message: "Error deleting product", 
+      error: error.message 
+    });
+  }
+});
        
+
+
+
+
+
+
 // Update order status
 router.patch("/orders/:id/status", async (req, res) => {
   try {
@@ -480,5 +632,6 @@ router.patch("/custom-orders/:id/status", async (req, res) => {
     });
   }
 });
+
 
 export default router;

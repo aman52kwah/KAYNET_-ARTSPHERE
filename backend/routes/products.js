@@ -25,7 +25,17 @@ router.get('/', async (req, res) => {
       include: [{ model: CategoryModel, as: 'category' }],
     });
 
-    res.json(products);
+    // ✅ Transform products to map stockQuantity to stock for frontend compatibility
+    const transformedProducts = products.map(product => {
+      const productData = product.toJSON();
+      return {
+        ...productData,
+        stock: productData.stockQuantity, // Map stockQuantity to stock
+        Category: productData.category // Also map category to Category for consistency
+      };
+    });
+
+    res.json(transformedProducts);
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ message: 'Error fetching products', error: error.message });
@@ -48,7 +58,15 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.json(product);
+    // ✅ Transform product to map stockQuantity to stock for frontend compatibility
+    const productData = product.toJSON();
+    const response = {
+      ...productData,
+      stock: productData.stockQuantity, // Map stockQuantity to stock
+      Category: productData.category // Also map category to Category for consistency
+    };
+
+    res.json(response);
   } catch (error) {
     console.error('Error fetching product:', error);
     res.status(500).json({ message: 'Error fetching product', error: error.message });
