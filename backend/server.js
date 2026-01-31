@@ -21,6 +21,7 @@ import customOrdersRoutes from './routes/customOrders.js';
 import ordersRouter from './routes/orders.js';
 import paymentsRouter from './routes/payment.js';
 import adminRoutes from './routes/admin.js';
+import cartRoutes from './routes/cart.js';
 
 const app = express();
 
@@ -341,7 +342,8 @@ app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/custom-orders', customOrdersRoutes);
 app.use('/api/payments', paymentsRouter);
-app.use('/api/admin', adminRoutes)
+app.use('/api/admin', adminRoutes);
+app.use('/api/cart', cartRoutes);
 
 // ============================================
 // DATABASE SYNC AND SERVER START

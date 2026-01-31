@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import axios from "axios";
 import express from "express";
@@ -11,6 +10,7 @@ const router = express.Router();
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
+// Initialize payment for custom orders (50% deposit)
 // Initialize payment for custom orders (50% deposit)
 router.post("/initialize-custom-order", requireAuth, async (req, res) => {
   try {
@@ -28,9 +28,9 @@ router.post("/initialize-custom-order", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    // Calculate 50% deposit
-    const depositAmount = (parseFloat(customOrder.totalPrice) * 0.5).toFixed(2);
-    const amountInSubunits = Math.round(depositAmount * 100);  // Pesewas for GHS
+    // Calculate 50% deposit - ✅ CHANGED from totalPrice to totalAmount
+    const depositAmount = (parseFloat(customOrder.totalAmount) * 0.5).toFixed(2);
+    const amountInSubunits = Math.round(depositAmount * 100);
 
     // Initialize paystack transaction
     const response = await axios.post(
@@ -38,7 +38,7 @@ router.post("/initialize-custom-order", requireAuth, async (req, res) => {
       {
         email: req.user.email,
         amount: amountInSubunits,
-        currency: 'GHS',  // FIX: Explicitly set to match model default and ensure pesewas
+        currency: 'GHS',
         metadata: {
           customOrderId: customOrder.id,
           userId: req.user.id,
@@ -61,7 +61,7 @@ router.post("/initialize-custom-order", requireAuth, async (req, res) => {
       paymentStatus: "pending",
       isDeposit: true,
       isFinalPayment: false,
-      currency: 'GHS',  // FIX: Corrected from 'GHC' to standard 'GHS'
+      currency: 'GHS',
     });
 
     res.json({
@@ -76,6 +76,151 @@ router.post("/initialize-custom-order", requireAuth, async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to initialize payment", error: error.message });
+  }
+});
+
+// Pay balance due for custom orders (after product is complete, before shipment)
+// Pay balance due for custom orders (after product is complete, before shipment)
+router.post("/initialize-balance-due", requireAuth, async (req, res) => {
+  try {
+    const dbModels = await models;
+    const paymentModel = dbModels.Payment;
+    const customOrderModel = dbModels.CustomOrder;
+    const { customOrderId } = req.body;
+
+    // ✅ Validate authentication first
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ 
+        message: "Unauthorized - User not authenticated" 
+      });
+    }
+
+    // ✅ Validate customOrderId
+    if (!customOrderId) {
+      return res.status(400).json({ 
+        message: "Custom order ID is required" 
+      });
+    }
+
+    // ✅ Fetch order
+    const customOrder = await customOrderModel.findByPk(customOrderId);
+
+    if (!customOrder) {
+      return res.status(404).json({ 
+        message: "Custom order not found" 
+      });
+    }
+
+    if (customOrder.userId !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    // Check if order is complete and awaiting final payment
+    if (customOrder.status !== "completed") {
+      return res.status(400).json({ 
+        message: "Order must be marked as complete before balance payment" 
+      });
+    }
+
+    // ✅ ADD DEBUGGING AND VALIDATION
+    console.log('💰 ========== BALANCE PAYMENT DEBUG ==========');
+    console.log('Custom Order ID:', customOrderId);
+    console.log('Total Amount from DB:', customOrder.totalAmount); // ✅ Changed from totalPrice
+    console.log('Total Amount type:', typeof customOrder.totalAmount);
+    console.log('User email:', req.user.email);
+
+    // ✅ FIX: Use totalAmount instead of totalPrice
+    if (!customOrder.totalAmount || isNaN(parseFloat(customOrder.totalAmount))) {
+      console.error('❌ Invalid totalAmount:', customOrder.totalAmount);
+      return res.status(400).json({ 
+        message: "Invalid order total amount" 
+      });
+    }
+
+    // Calculate balance due (50% of total amount)
+    const totalAmount = parseFloat(customOrder.totalAmount); // ✅ Changed from totalPrice
+    const balanceDue = (totalAmount * 0.5).toFixed(2);
+    const balanceDueNumber = parseFloat(balanceDue);
+    
+    // ✅ Validate balanceDue is positive
+    if (balanceDueNumber <= 0) {
+      console.error('❌ Invalid balance due:', balanceDueNumber);
+      return res.status(400).json({ 
+        message: "Invalid balance amount calculated" 
+      });
+    }
+
+    // Convert to pesewas (smallest currency unit) - must be integer
+    const amountInSubunits = Math.round(balanceDueNumber * 100);
+
+    console.log('Balance Due (GHS):', balanceDue);
+    console.log('Amount in pesewas:', amountInSubunits);
+    console.log('Amount validation:', {
+      isInteger: Number.isInteger(amountInSubunits),
+      isPositive: amountInSubunits > 0,
+      value: amountInSubunits
+    });
+    console.log('===============================================');
+
+    // ✅ Final validation before sending to Paystack
+    if (!Number.isInteger(amountInSubunits) || amountInSubunits <= 0) {
+      console.error('❌ Invalid amount for Paystack:', amountInSubunits);
+      return res.status(400).json({ 
+        message: "Invalid payment amount calculated" 
+      });
+    }
+
+    // Initialize paystack transaction
+    const paystackPayload = {
+      email: req.user.email,
+      amount: amountInSubunits,
+      currency: 'GHS',
+      metadata: {
+        customOrderId: customOrder.id,
+        userId: req.user.id,
+        paymentType: "balance",
+      },
+      callback_url: `${process.env.CLIENT_URL}/payment/verify`,
+    };
+
+    console.log('📤 Sending to Paystack:', paystackPayload);
+
+    const response = await axios.post(
+      `${PAYSTACK_BASE_URL}/transaction/initialize`,
+      paystackPayload,
+      {
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log('✅ Paystack response:', response.data);
+
+    // Create payment record for balance due
+    await paymentModel.create({
+      customOrderId: customOrder.id,
+      amount: balanceDue,
+      transactionId: response.data.data.reference,
+      paymentStatus: "pending",
+      isDeposit: false,
+      isFinalPayment: true,
+      currency: 'GHS',
+    });
+
+    res.json({
+      authorizationUrl: response.data.data.authorization_url,
+      reference: response.data.data.reference,
+      balanceDue: balanceDue,
+      message: "Balance payment initialized successfully",
+    });
+  } catch (error) {
+    console.error("❌ Balance payment initialization error:", error.response?.data || error);
+    res.status(500).json({ 
+      message: "Failed to initialize balance payment", 
+      error: error.response?.data || error.message 
+    });
   }
 });
 
@@ -160,6 +305,67 @@ router.post("/initialize-order", requireAuth, async (req, res) => {
   }
 });
 
+
+// Get balance due for a custom order
+// Get balance due for a custom order
+router.get("/balance-due/:customOrderId", requireAuth, async (req, res) => {
+  try {
+    const dbModels = await models;
+    const customOrderModel = dbModels.CustomOrder;
+    const paymentModel = dbModels.Payment;
+    const { customOrderId } = req.params;
+
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ 
+        message: 'User not authenticated' 
+      });
+    }
+
+    const customOrder = await customOrderModel.findByPk(customOrderId);
+
+    if (!customOrder) {
+      return res.status(404).json({ message: "Custom order not found" });
+    }
+
+    if (customOrder.userId !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    // Calculate amounts - ✅ CHANGED from totalPrice to totalAmount
+    const depositAmount = (parseFloat(customOrder.totalAmount) * 0.5).toFixed(2);
+    const balanceDue = (parseFloat(customOrder.totalAmount) * 0.5).toFixed(2);
+
+    // Check if balance has already been paid
+    const balancePayment = await paymentModel.findOne({
+      where: {
+        customOrderId: customOrderId,
+        isFinalPayment: true,
+        paymentStatus: "completed",
+      },
+    });
+
+    res.json({
+      customOrderId: customOrder.id,
+      totalPrice: customOrder.totalAmount, // ✅ Return as totalPrice but read from totalAmount
+      depositAmount: depositAmount,
+      balanceDue: balanceDue,
+      status: customOrder.status,
+      isBalancePaid: !!balancePayment,
+      paidAmount: customOrder.paidAmount || 0,
+      readyForShipment: balancePayment ? true : false,
+      message: balancePayment 
+        ? "Balance payment completed. Order ready for shipment."
+        : "Balance payment pending. Please complete payment before shipment.",
+    });
+  } catch (error) {
+    console.error("Error getting balance due:", error);
+    res.status(500).json({ 
+      message: "Failed to get balance information", 
+      error: error.message 
+    });
+  }
+});
 
 // Verify payment
 router.get("/verify/:reference", async (req, res) => {
@@ -313,4 +519,4 @@ router.get("/history", requireAuth, async (req, res) => {
   }
 });
 
-export default router;
+ export default router;

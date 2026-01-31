@@ -56,6 +56,10 @@ router.get("/dashboard/stats", async (req, res) => {
       where: { status: "pending" },
     });
 
+    const pendingCustomOrders = await customOrderModel.count({
+      where:{status:"pending"},
+    });
+
     // Calculate total revenue from orders
     const orderRevenue = (await orderModel.sum("totalAmount")) || 0;
 
@@ -95,6 +99,7 @@ router.get("/dashboard/stats", async (req, res) => {
       customOrders,
       readyMadeOrders,
       pendingOrders,
+      pendingCustomOrders,
       totalRevenue: Math.round(totalRevenue * 100) / 100,
       todayRevenue: Math.round(todayRevenue * 100) / 100,
     };
@@ -268,7 +273,7 @@ router.get('/orders/:orderId', async (req, res) => {
     // Calculate financial breakdown
     const subtotal = parseFloat(order.totalAmount || 0);
     const shipping = 20; // Fixed shipping cost (GH₵ 20)
-    const taxRate = 0.10; // 10% tax rate
+    const taxRate = 0.1; // 1% tax rate
     const tax = Math.round((subtotal * taxRate) * 100) / 100; // 10% of subtotal
     const grandTotal = Math.round((subtotal + shipping + tax) * 100) / 100; // Total with tax & shipping
     
@@ -313,7 +318,7 @@ router.get('/orders/:orderId', async (req, res) => {
       // Financial breakdown with calculated tax
       subtotal: subtotal,         // Items total
       shipping: shipping,         // Fixed GH₵ 20
-      tax: tax,                   // 10% of subtotal
+      tax: tax,                   // 1% of subtotal
       total: grandTotal,          // Subtotal + Shipping + Tax
     };
     
@@ -393,12 +398,12 @@ router.post('/products', async (req, res) => {
     console.log('📦 Creating new product...');
     console.log('Request body:', req.body);
     
-    const { name, price, categoryId, stock, sizes, description, imageUrl } = req.body;
+    const { name, price,color, categoryId, stock, sizes, description, imageUrl } = req.body;
 
     // Validation
-    if (!name || !price || !categoryId || stock === undefined || !sizes || sizes.length === 0) {
+    if (!name || !price || !categoryId ||!color || stock === undefined || !sizes || sizes.length === 0) {
       return res.status(400).json({ 
-        message: 'Missing required fields: name, price, categoryId, stock, and sizes are required' 
+        message: 'Missing required fields: name, price, color,categoryId, stock, and sizes are required' 
       });
     }
 
@@ -415,6 +420,7 @@ router.post('/products', async (req, res) => {
       sizes: sizes, // ✅ Don't stringify - PostgreSQL ARRAY handles it
       description: description || null,
       imageUrl: imageUrl || null,
+      color,
     });
 
     console.log('✅ Product created:', newProduct.id);
@@ -454,7 +460,7 @@ router.put("/products/:id", async (req, res) => {
     console.log("📝 Updating product:", req.params.id);
     console.log("Request body:", req.body);
 
-    const { name, price, categoryId, stock, sizes, description, imageUrl } = req.body;
+    const { name, price,color, categoryId, stock, sizes, description, imageUrl } = req.body;
 
     const dbModels = await models;
     const productModel = dbModels.Products;
@@ -475,6 +481,7 @@ router.put("/products/:id", async (req, res) => {
       sizes: sizes, // ✅ Don't stringify - PostgreSQL ARRAY handles it
       description: description || null,
       imageUrl: imageUrl || null,
+      color,
     });
 
     console.log("✅ Product updated:", product.id);

@@ -8,6 +8,8 @@ import { Category as CategoryPromise } from "./Category.js";
 import { Style as StylePromise } from "./Style.js";
 import { Material as MaterialPromise } from "./Material.js";
 import { Payment as PaymentPromise } from "./Payment.js";
+import { Cart as CartPromise} from "./Cart.js";
+import {CartItems as CartItemsPromise} from "./CartItems.js";
 
 export const sequelize = await sequelizePromise;
 
@@ -26,6 +28,8 @@ async function initializeModels() {
   const CustomOrder = await CustomOrderPromise;
   const OrderItems = await OrderItemsPromise;
   const Payment = await PaymentPromise;
+  const Cart = await CartPromise;
+  const CartItems = await CartItemsPromise;
 
   console.log('✅ All models loaded');
 
@@ -160,7 +164,43 @@ async function initializeModels() {
     foreignKey: 'customOrderId',
     as: 'customOrder'
   });
+// ==================== NEW CART ASSOCIATIONS ====================
+User.hasOne(Cart, { 
+      foreignKey: "userId", 
+      as: "cart",
+      onDelete: "CASCADE" 
+    });
 
+    Cart.belongsTo(User, { 
+      foreignKey: "userId", 
+      as: "user" 
+    });
+
+ // Cart ↔ CartItems (One-to-Many)
+    Cart.hasMany(CartItems, { 
+      foreignKey: "cartId", 
+      as: "items",
+      onDelete: "CASCADE" 
+    });
+
+    CartItems.belongsTo(Cart, { 
+      foreignKey: "cartId", 
+      as: "cart" 
+    });
+
+    // CartItems ↔ Products (Many-to-One)
+    CartItems.belongsTo(Products, { 
+      foreignKey: "productId", 
+      as: "product" 
+    });
+    Products.hasMany(CartItems, { 
+      foreignKey: "productId", 
+      as: "cartItems" 
+    });
+
+
+
+// ==================== NEW CART ASSOCIATIONS ====================
   console.log('✅ All associations defined');
 
   // SYNC MODELS IN CORRECT ORDER
@@ -192,9 +232,14 @@ async function initializeModels() {
     await CustomOrder.sync({ alter: true });
     console.log('✅ CustomOrders table synced');
     
+    await Cart.sync({alter:true});
+    console.log('✅ Cart table synced')
     // Step 5: Tables that depend on Orders and Products
     await OrderItems.sync({ alter: true });
     console.log('✅ OrderItems table synced');
+
+    await CartItems.sync({alter:true});
+    console.log('✅CartItems table synced');
     
     // Step 6: Payment (depends on Orders and CustomOrders)
     await Payment.sync({ alter: true });
@@ -218,6 +263,8 @@ async function initializeModels() {
     Style,
     Material,
     Payment,
+    Cart,
+    CartItems,
   };
 }
 
@@ -234,6 +281,8 @@ export const Category = models.Category;
 export const Style = models.Style;
 export const Material = models.Material;
 export const Payment = models.Payment;
+export const Cart = models.Cart;
+export const CartItems = models.CartItems;
 
 // Export default
 export default models;

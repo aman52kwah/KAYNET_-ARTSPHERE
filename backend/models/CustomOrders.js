@@ -102,6 +102,10 @@ const CustomOrder = sequelize.then((seq) =>
       totalAmount: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: true,
+        validate: {
+      min: 0,
+    isDecimal: true
+  }
       },
       depositAmount: {
         type: DataTypes.DECIMAL(10, 2),
